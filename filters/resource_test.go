@@ -55,12 +55,16 @@ func TestFilterSearchReplace(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		span := newTestSpan(test.resource, test.resource)
+		trace := newTestTrace(test.resource, test.resource)
         this_filter := []string{test.search, test.replace}
 		filter := newSearchReplaceTestFilter([][]string{this_filter})
-        filter.Keep(span)
+        filter.ApplyRegex(trace)
 
-		assert.Equal(t, test.expectation, span.Meta["http.url"])
+        for i := range trace {
+            span := trace[i]
+		    assert.Equal(t, test.expectation, span.Meta["http.url"])
+        }
+        assert.True(t, len(trace) > 1)
 	}
 }
 
@@ -96,12 +100,13 @@ func TestMultipleEntries(t *testing.T) {
 
 func TestMultipleRegex(t *testing.T) {
     resource := "/match1/match2/remainder"
-    span := newTestSpan(resource, resource)
+    trace := newTestTrace(resource, resource)
     filter1 := []string{"match2", "replace2"}
     filter2 := []string{"match1", "replace1"}
     filter := newSearchReplaceTestFilter([][]string{filter1, filter2})
-    filter.Keep(span)
+    filter.ApplyRegex(trace)
     
+    span := trace[0]
     assert.Equal(t, "/replace1/replace2/remainder", span.Meta["http.url"])
 }
 
@@ -124,4 +129,15 @@ func newTestSpan(resource string, meta_http_url string) *model.Span {
 	span.Resource = resource
     span.Meta["http.url"] = meta_http_url
 	return span
+}
+
+func newTestTrace(resource string, meta_http_url string) model.Trace {
+    // Trace with 3 levels and 3 traces per level
+    trace := fixtures.RandomTrace(3, 3)
+    for i := range trace {
+        trace[i].Resource = resource
+        trace[i].Meta["http.url"] = meta_http_url
+    }
+
+    return trace
 }

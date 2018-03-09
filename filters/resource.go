@@ -17,21 +17,32 @@ type resourceFilter struct {
 
 // Keep returns true if Span.Resource doesn't match any of the filter's rules
 func (f *resourceFilter) Keep(t *model.Span) bool {
-	for _, entry := range f.blacklist {
-		if entry.MatchString(t.Resource) {
-			return false
-		}
-	}
-
-    for _, entry := range f.searchReplace {
-	    for key, value := range entry {
-	    	if key.MatchString(t.Meta["http.url"]) {
-                t.Meta["http.url"] = key.ReplaceAllString(t.Meta["http.url"], value)
-	    	}
-	    }
-    }
+   for _, entry := range f.blacklist {
+           if entry.MatchString(t.Resource) {
+                   return false
+           }
+   }
 
 	return true
+}
+
+
+func (f *resourceFilter) ApplyRegex(t model.Trace) {
+    // Find all of the spans in this trace and apply the regex's to each of them
+    spans := []*model.Span{}
+	for i := range t{
+		spans = append(spans, t[i])
+    }
+
+    for _, span := range spans {
+        for _, entry := range f.searchReplace {
+    	    for key, value := range entry {
+    	    	if key.MatchString(span.Meta["http.url"]) {
+                    span.Meta["http.url"] = key.ReplaceAllString(span.Meta["http.url"], value)
+    	    	}
+    	    }
+        }
+    }
 }
 
 func newResourceFilter(conf *config.AgentConfig) Filter {

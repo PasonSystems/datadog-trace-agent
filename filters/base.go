@@ -8,6 +8,7 @@ import (
 // Filter is the interface implemented by all span-filters
 type Filter interface {
 	Keep(*model.Span) bool
+    ApplyRegex(model.Trace)
 }
 
 // Setup returns a slice of all registered filters
