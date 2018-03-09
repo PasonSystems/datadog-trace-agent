@@ -69,6 +69,7 @@ type AgentConfig struct {
 
 	// filtering
 	Ignore map[string][]string
+    Regex map[string][][]string
 
 	// transaction analytics
 	AnalyzedRateByService map[string]float64
@@ -114,6 +115,7 @@ func NewDefaultAgentConfig() *AgentConfig {
 		WatchdogInterval: time.Minute,
 
 		Ignore:                make(map[string][]string),
+        Regex:                 make(map[string][][]string),
 		AnalyzedRateByService: make(map[string]float64),
 	}
 }

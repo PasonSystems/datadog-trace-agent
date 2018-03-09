@@ -17,6 +17,10 @@ func TestFilter(t *testing.T) {
 	}{
 		{"/foo/bar", "/foo/bar", false},
 		{"/foo/b.r", "/foo/bar", false},
+		{"/foo/.*", "/foo/bar", false},
+		{"/foo/.*", "GET /foo/bar", false},
+		{"/foo.*", "/foo/bar/asdf", false},
+		{"/foo.*", "/foo/bar/asdf?othersuff=xyz&the_thing=rst", false},
 		{"[0-9]+", "/abcde", true},
 		{"[0-9]+", "/abcde123", false},
 		{"\\(foobar\\)", "(foobar)", false},
@@ -28,16 +32,41 @@ func TestFilter(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		span := newTestSpan(test.resource)
-		filter := newTestFilter(test.filter)
+		span := newTestSpan(test.resource, test.resource)
+		filter := newTestFilter([]string{test.filter})
 
 		assert.Equal(t, test.expectation, filter.Keep(span))
 	}
 }
 
+func TestFilterSearchReplace(t *testing.T) {
+	tests := []struct {
+		search      string
+		replace     string
+		resource    string
+		expectation string
+	}{
+		{"foo", "FOO", "/foo/bar", "/FOO/bar"},
+		{"FOO", "foo", "/foo/bar", "/foo/bar"},
+		{"foo", "FOO", "/foo/bar/foo", "/FOO/bar/FOO"},
+		{"(/foo/bar/).*", "${1}extra", "/foo/bar/foo", "/foo/bar/extra"},
+		{"(/foo/bar/).*", "${1}extra", "/foo/bar/foo/bar", "/foo/bar/extra"},
+		{"bar", "BAR", "/foo/bar/foo/bar", "/foo/BAR/foo/BAR"},
+	}
+
+	for _, test := range tests {
+		span := newTestSpan(test.resource, test.resource)
+        this_filter := []string{test.search, test.replace}
+		filter := newSearchReplaceTestFilter([][]string{this_filter})
+        filter.Keep(span)
+
+		assert.Equal(t, test.expectation, span.Meta["http.url"])
+	}
+}
+
 // a filter instantiated with malformed expressions should let anything pass
 func TestRegexCompilationFailure(t *testing.T) {
-	filter := newTestFilter("[123", "]123", "{6}")
+	filter := newTestFilter([]string{"[123", "]123", "{6}"})
 
 	for i := 0; i < 100; i++ {
 		span := fixtures.RandomSpan()
@@ -46,34 +75,53 @@ func TestRegexCompilationFailure(t *testing.T) {
 }
 
 func TestRegexEscaping(t *testing.T) {
-	span := newTestSpan("[123")
+	span := newTestSpan("[123", "")
 
-	filter := newTestFilter("[123")
+	filter := newTestFilter([]string{"[123"})
 	assert.True(t, filter.Keep(span))
 
-	filter = newTestFilter("\\[123")
+	filter = newTestFilter([]string{"\\[123"})
 	assert.False(t, filter.Keep(span))
 }
 
 func TestMultipleEntries(t *testing.T) {
-	filter := newTestFilter("ABC+", "W+")
+	filter := newTestFilter([]string{"ABC+", "W+"})
 
-	span := newTestSpan("ABCCCC")
+	span := newTestSpan("ABCCCC", "")
 	assert.False(t, filter.Keep(span))
 
-	span = newTestSpan("WWW")
+	span = newTestSpan("WWW", "")
 	assert.False(t, filter.Keep(span))
 }
 
-func newTestFilter(blacklist ...string) Filter {
+func TestMultipleRegex(t *testing.T) {
+    resource := "/match1/match2/remainder"
+    span := newTestSpan(resource, resource)
+    filter1 := []string{"match2", "replace2"}
+    filter2 := []string{"match1", "replace1"}
+    filter := newSearchReplaceTestFilter([][]string{filter1, filter2})
+    filter.Keep(span)
+    
+    assert.Equal(t, "/replace1/replace2/remainder", span.Meta["http.url"])
+}
+
+func newTestFilter(blacklist []string) Filter {
 	c := config.NewDefaultAgentConfig()
 	c.Ignore["resource"] = blacklist
 
 	return newResourceFilter(c)
 }
 
-func newTestSpan(resource string) *model.Span {
+func newSearchReplaceTestFilter(search_replace [][]string) Filter {
+	c := config.NewDefaultAgentConfig()
+	c.Regex["resource"] = search_replace
+
+	return newResourceFilter(c)
+}
+
+func newTestSpan(resource string, meta_http_url string) *model.Span {
 	span := fixtures.RandomSpan()
 	span.Resource = resource
+    span.Meta["http.url"] = meta_http_url
 	return span
 }

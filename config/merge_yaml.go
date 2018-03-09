@@ -41,6 +41,7 @@ type traceAgent struct {
 	ExtraSampleRate    float64  `yaml:"extra_sample_rate"`
 	MaxTracesPerSecond float64  `yaml:"max_traces_per_second"`
 	IgnoreResources    []string `yaml:"ignore_resources"`
+    RegexResources     [][]string `yaml:"regex_resources"`
 	ReceiverPort       int      `yaml:"receiver_port"`
 	APMNonLocalTraffic *bool    `yaml:"apm_non_local_traffic"`
 
@@ -168,6 +169,10 @@ func mergeYamlConfig(agentConf *AgentConfig, yc *YamlAgentConfig) error {
 
 	if len(yc.TraceAgent.IgnoreResources) > 0 {
 		agentConf.Ignore["resource"] = yc.TraceAgent.IgnoreResources
+	}
+
+	if len(yc.TraceAgent.RegexResources) > 0 {
+		agentConf.Regex["resource"] = yc.TraceAgent.RegexResources
 	}
 
 	if yc.TraceAgent.APMNonLocalTraffic != nil && *yc.TraceAgent.APMNonLocalTraffic {
